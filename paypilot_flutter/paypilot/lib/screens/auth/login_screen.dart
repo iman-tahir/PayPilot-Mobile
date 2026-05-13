@@ -3,6 +3,7 @@ import '../../utils/constants.dart';
 import '../dashboard/main_shell.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,10 +16,56 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   bool _obscure = true;
+  bool _isLoading = false;
 
-  void _submit() {
-    if (_formKey.currentState!.validate()) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainShell()));
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailCtrl.text.trim(),
+        password: _passCtrl.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const MainShell()),
+      );
+
+    } on FirebaseAuthException catch (e) {
+
+      String message = 'Login failed';
+
+      if (e.code == 'user-not-found') {
+        message = 'No user found with this email';
+      } else if (e.code == 'wrong-password') {
+        message = 'Incorrect password';
+      } else if (e.code == 'invalid-email') {
+        message = 'Invalid email address';
+      } else if (e.code == 'invalid-credential') {
+        message = 'Invalid email or password';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+
+    } catch (e) {
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+
+    } finally {
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -126,7 +173,19 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    ElevatedButton(onPressed: _submit, child: const Text('Log In to PayPilot →')),
+                    ElevatedButton(
+                      onPressed: _isLoading ? null : _submit,
+                      child: _isLoading
+                          ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                          : const Text('Log In to PayPilot →'),
+                    ),
                     const SizedBox(height: 24),
                     Row(children: const [
                       Expanded(child: Divider()),

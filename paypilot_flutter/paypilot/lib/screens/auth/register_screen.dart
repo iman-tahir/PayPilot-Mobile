@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../utils/constants.dart';
 import '../dashboard/main_shell.dart';
 import 'login_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -17,12 +18,54 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _cnicCtrl  = TextEditingController();
   final _passCtrl  = TextEditingController();
   final _confCtrl  = TextEditingController();
-  bool _obscurePass = true, _obscureConf = true, _termsChecked = false, _termsError = false;
+  bool _obscurePass = true,
+      _obscureConf = true,
+      _termsChecked = false,
+      _termsError = false,
+      _isLoading = false;
+  Future<void> _submit() async {
 
-  void _submit() {
     setState(() => _termsError = !_termsChecked);
-    if (_formKey.currentState!.validate() && _termsChecked) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainShell()));
+
+    if (!_formKey.currentState!.validate() || !_termsChecked) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+
+      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: _emailCtrl.text.trim(),
+        password: _passCtrl.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const MainShell()),
+      );
+
+    } on FirebaseAuthException catch (e) {
+
+      String message = 'Signup failed';
+
+      if (e.code == 'email-already-in-use') {
+        message = 'Email already in use';
+      } else if (e.code == 'invalid-email') {
+        message = 'Invalid email';
+      } else if (e.code == 'weak-password') {
+        message = 'Weak password';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+
+    } finally {
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -92,7 +135,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             if (_termsError) const Text('You must accept the terms to continue', style: TextStyle(color: kError, fontSize: 12, fontFamily: 'Poppins')),
             const SizedBox(height: 16),
-            ElevatedButton(onPressed: _submit, child: const Text('Create Account')),
+
+            ElevatedButton(
+              onPressed: _isLoading ? null : _submit,
+              child: _isLoading
+                  ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+                  : const Text('Create Account'),
+            ),
             const SizedBox(height: 16),
             Center(child: GestureDetector(
               onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen())),
